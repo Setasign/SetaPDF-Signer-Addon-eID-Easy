@@ -1,0 +1,11 @@
+<?php
+
+return [
+    'demoUrl' => 'http://your-local-webserver/SetaPDF-Signer-Addon-eid-easy/examples',
+
+    // default sandbox
+    'clientId' => '2IaeiZXbcKzlP1KvjZH9ghty2IJKM8Lg',
+    'clientSecret' => '56RkLgZREDi1H0HZAvzOSAVlxu1Flx41',
+
+    'sandbox' => true
+];
