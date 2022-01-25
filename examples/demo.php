@@ -15,6 +15,9 @@ ini_set('display_errors', '1');
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+if (!file_exists(__DIR__ . '/settings.php')) {
+    throw new RuntimeException('Missing settings.php!');
+}
 $settings = require __DIR__ . '/settings.php';
 
 $file = __DIR__ . '/files/Laboratory-Report.pdf';
@@ -92,20 +95,14 @@ if (!isset($_SESSION[__FILE__]['docId'])) {
     $signer->setSignatureFieldName($field->getQualifiedName());
 
     $tmpDocument = $signer->preSign(new SetaPDF_Core_Writer_File(SetaPDF_Core_Writer_TempFile::createTempPath()), $module);
-    $hash = base64_encode(hash_file('sha256', $tmpDocument->getHashFile()->getPath(), true));
-    $docId = $module->prepareDocument($hash, basename($file), $demoUrl);
+    $processData = $module->prepareDocument($tmpDocument, basename($file), $demoUrl);
 
-    $_SESSION[__FILE__] = [
-        'tmpDocument' => $tmpDocument,
-        'docId' => $docId
-    ];
-}
-
-if (!isset($docId)) {
-    $docId = $_SESSION[__FILE__]['docId'];
+    $_SESSION[__FILE__] = $processData;
+} else {
+    $processData = $_SESSION[__FILE__];
     try {
         // check whether the document is already signed
-        $signatureValue = $module->fetchSignature($docId);
+        $signatureValue = $module->fetchSignature($processData->getDocId());
     } catch (\setasign\SetaPDF\Signer\Module\EidEasy\Exception $e) {
         // todo what kinds of errors can occur?
         var_dump($e);
@@ -138,7 +135,7 @@ const eidEasyWidget = document.createElement('eideasy-widget');
 
 const settings = {
   clientId: '{$settings['clientId']}',
-  docId: '{$docId}',
+  docId: '{$processData->getDocId()}',
   countryCode: 'EE', // ISO 3166  two letter country code
   language: 'en', // ISO 639-1 two letter language code,
   sandbox: true,
@@ -179,18 +176,12 @@ HTML;
     return;
 }
 
-/**
- * @var SetaPDF_Signer_TmpDocument $tmpDocument
- * @var SetaPDF_Core_Reader_ReaderInterface $reader
- */
-$tmpDocument = $_SESSION[__FILE__]['tmpDocument'];
-
 $reader = new SetaPDF_Core_Reader_File($file);
 $writer = new SetaPDF_Core_Writer_String();
 
 $document = SetaPDF_Core_Document::load($reader, $writer);
 $signer = new SetaPDF_Signer($document);
-$signer->saveSignature($tmpDocument, $signatureValue);
+$signer->saveSignature($processData->getTmpDocument(), $signatureValue);
 
 $_SESSION[__FILE__] = [
     'pdf' => [

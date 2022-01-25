@@ -14,6 +14,7 @@ use SetaPDF_Core_Type_Name;
 use SetaPDF_Signer_Exception;
 use SetaPDF_Signer_Signature_DictionaryInterface;
 use SetaPDF_Signer_Signature_DocumentInterface;
+use SetaPDF_Signer_TmpDocument;
 
 class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Signer_Signature_DocumentInterface
 {
@@ -100,17 +101,19 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
     }
 
     /**
-     * @param string $hash
+     * @param SetaPDF_Signer_TmpDocument $tmpDocument
      * @param string $filename
      * @param string $redirect Where to redirect the user after successful signing.
      *                         In case signing happens in iFrame then top window is redirected.
-     * @return string The document id
+     * @return ProcessData
      * @throws ClientExceptionInterface
      * @throws Exception
      * @see https://documenter.getpostman.com/view/3869493/Szf6WoG1#74939bae-2c9b-459c-9f0b-8070d2bd32f7
      */
-    public function prepareDocument(string $hash, string $filename, string $redirect): string
+    public function prepareDocument(SetaPDF_Signer_TmpDocument $tmpDocument, string $filename, string $redirect): ProcessData
     {
+        $hash = base64_encode(hash_file('sha256', $tmpDocument->getHashFile()->getPath(), true));
+
         $request = (
             $this->requestFactory->createRequest('POST', $this->apiUrl . '/api/signatures/prepare-files-for-signing')
             ->withHeader('Accept', 'application/json')
@@ -148,7 +151,7 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
         if (($responseContent['status'] ?? 'error') !== 'OK') {
             throw new Exception('Error while preparing files for signing. ' . json_encode($responseContent));
         }
-        return $responseContent['doc_id'];
+        return new ProcessData($responseContent['doc_id'], $tmpDocument);
     }
 
     /**
