@@ -36,19 +36,19 @@ $streamFactory = new StreamFactory();
 session_start();
 
 if (isset($_GET['reset'])) {
-    $_SESSION[__FILE__] = [];
+    unset($_SESSION[__FILE__]);
 }
 
 if (isset($_GET['preview'])) {
     $doc = file_get_contents($file);
 
     header('Content-Type: application/pdf');
-    header('Content-Disposition: attachment; filename="' . $doc['name']);
+    header('Content-Disposition: inline; filename="' . basename($file));
     header('Expires: 0');
     header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
     header('Pragma: public');
-    header('Content-Length: ' . strlen($doc['data']));
-    echo $doc['data'];
+    header('Content-Length: ' . strlen($doc));
+    echo $doc;
     flush();
     return;
 }
@@ -76,7 +76,7 @@ $module = new Module(
     $settings['sandbox'] ?? false
 );
 
-if (!isset($_SESSION[__FILE__]['docId'])) {
+if (!isset($_SESSION[__FILE__]['processData'])) {
     $reader = new SetaPDF_Core_Reader_File($file);
     // let's get the document
     $document = SetaPDF_Core_Document::load($reader);
@@ -97,9 +97,11 @@ if (!isset($_SESSION[__FILE__]['docId'])) {
     $tmpDocument = $signer->preSign(new SetaPDF_Core_Writer_File(SetaPDF_Core_Writer_TempFile::createTempPath()), $module);
     $processData = $module->prepareDocument($tmpDocument, basename($file), $demoUrl);
 
-    $_SESSION[__FILE__] = $processData;
+    $_SESSION[__FILE__] = [
+        'processData' => $processData
+    ];
 } else {
-    $processData = $_SESSION[__FILE__];
+    $processData = $_SESSION[__FILE__]['processData'];
     try {
         // check whether the document is already signed
         $signatureValue = $module->fetchSignature($processData->getDocId());
