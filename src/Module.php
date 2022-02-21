@@ -21,32 +21,37 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
     /**
      * @var string
      */
-    private $apiUrl;
+    protected $apiUrl;
 
     /**
      * @var string
      */
-    private $clientId;
+    protected $clientId;
 
     /**
      * @var string
      */
-    private $clientSecret;
+    protected $clientSecret;
 
     /**
      * @var ClientInterface
      */
-    private $httpClient;
+    protected $httpClient;
 
     /**
      * @var RequestFactoryInterface
      */
-    private $requestFactory;
+    protected $requestFactory;
 
     /**
      * @var StreamFactoryInterface
      */
-    private $streamFactory;
+    protected $streamFactory = [];
+
+    /**
+     * @var array
+     */
+    protected $lastResponseData;
 
     public function __construct(
         ClientInterface $httpClient,
@@ -110,7 +115,9 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
      * @throws Exception
      * @see https://documenter.getpostman.com/view/3869493/Szf6WoG1#74939bae-2c9b-459c-9f0b-8070d2bd32f7
      */
-    public function prepareDocument(SetaPDF_Signer_TmpDocument $tmpDocument, string $filename, string $redirect): ProcessData
+    public function prepareDocument(
+        SetaPDF_Signer_TmpDocument $tmpDocument, string $filename, string $redirect, string $fieldName
+    ): ProcessData
     {
         $hash = base64_encode(hash_file('sha256', $tmpDocument->getHashFile()->getPath(), true));
 
@@ -147,11 +154,12 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
             ));
         }
 
-        $responseContent = json_decode($responseBody, true);
-        if (($responseContent['status'] ?? 'error') !== 'OK') {
-            throw new Exception('Error while preparing files for signing. ' . json_encode($responseContent));
+        $responseData = json_decode($responseBody, true);
+        $this->lastResponseData = $responseData;
+        if (($responseData['status'] ?? 'error') !== 'OK') {
+            throw new Exception('Error while preparing files for signing. ' . json_encode($responseData));
         }
-        return new ProcessData($responseContent['doc_id'], $tmpDocument);
+        return new ProcessData($responseData['doc_id'], $tmpDocument, $fieldName);
     }
 
     /**
@@ -183,11 +191,53 @@ class Module implements SetaPDF_Signer_Signature_DictionaryInterface, SetaPDF_Si
             ));
         }
 
-        $responseContent = json_decode($responseBody, true);
-        if (($responseContent['status'] ?? 'error') !== 'OK') {
-            throw new Exception('Error while downloading signed file. ' . json_encode($responseContent));
+        $responseData = json_decode($responseBody, true);
+        $this->lastResponseData = $responseData;
+        if (($responseData['status'] ?? 'error') !== 'OK') {
+            throw new Exception('Error while downloading signed file. ' . json_encode($responseData));
         }
 
-        return base64_decode($responseContent['signed_file_contents']);
+        return base64_decode($responseData['signed_file_contents']);
+    }
+
+    /**
+     * Updates the document security store by the last received revoke information.
+     *
+     * @param \SetaPDF_Core_Document $document
+     * @param string $fieldName The signature field, that was signed.
+     * @throws \SetaPDF_Signer_Asn1_Exception
+     */
+    public function updateDss(\SetaPDF_Core_Document $document, string $fieldName)
+    {
+        $responseData = $this->getLastResponseData();
+        if (!isset($responseData['pades_dss_data'])) {
+            throw new \BadMethodCallException('No verification data available.');
+        }
+
+        $vri = $responseData['pades_dss_data'];
+
+        $crls = [];
+        $ocsps = [];
+        $certificates = [];
+
+        foreach ($vri['crls'] ?? [] as $crl) {
+            $crls[] = base64_decode($crl);
+        }
+
+        foreach ($vri['ocsps'] ?? [] as $ocsp) {
+            $ocsps[] = base64_decode($ocsp);
+        }
+
+        foreach ($vri['certificates'] ?? [] as $certificate) {
+            $certificates[] = base64_decode($certificate);
+        }
+
+        $dss = new \SetaPDF_Signer_DocumentSecurityStore($document);
+        $dss->addValidationRelatedInfoByFieldName($fieldName, $crls, $ocsps, $certificates);
+    }
+
+    public function getLastResponseData(): array
+    {
+        return $this->lastResponseData;
     }
 }

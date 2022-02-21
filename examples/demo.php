@@ -71,7 +71,7 @@ switch ($action) {
         $signer->setSignatureFieldName($field->getQualifiedName());
 
         $tmpDocument = $signer->preSign(new SetaPDF_Core_Writer_File(SetaPDF_Core_Writer_TempFile::createTempPath()), $module);
-        $processData = $module->prepareDocument($tmpDocument, basename($file), $demoUrl . '?action=sign');
+        $processData = $module->prepareDocument($tmpDocument, basename($file), $demoUrl . '?action=sign', $field->getQualifiedName());
 
         $_SESSION[__FILE__] = [
             'processData' => $processData
@@ -173,11 +173,17 @@ HTML;
 
 
         $reader = new SetaPDF_Core_Reader_File($file);
-        $writer = new SetaPDF_Core_Writer_String();
+        $tmpWriter = new SetaPDF_Core_Writer_String();
 
-        $document = SetaPDF_Core_Document::load($reader, $writer);
+        $document = SetaPDF_Core_Document::load($reader, $tmpWriter);
         $signer = new SetaPDF_Signer($document);
         $signer->saveSignature($processData->getTmpDocument(), $signatureValue);
+
+        // add DSS
+        $writer = new SetaPDF_Core_Writer_String();
+        $document = SetaPDF_Core_Document::loadByString($tmpWriter, $writer);
+        $module->updateDss($document, $processData->getFieldName());
+        $document->save()->finish();
 
         $_SESSION[__FILE__] = [
             'pdf' => [

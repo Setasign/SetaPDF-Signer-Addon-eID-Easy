@@ -16,17 +16,24 @@ class ProcessData
     /**
      * @var string
      */
-    private $docId;
+    protected $docId;
 
     /**
      * @var SetaPDF_Signer_TmpDocument
      */
-    private $tmpDocument;
+    protected $tmpDocument;
 
-    public function __construct(string $docId, SetaPDF_Signer_TmpDocument $tmpDocument)
-    {
+    /**
+     * @var string
+     */
+    protected $fieldName;
+
+    public function __construct(
+        string $docId, SetaPDF_Signer_TmpDocument $tmpDocument, string $fieldName
+    ) {
         $this->docId = $docId;
         $this->tmpDocument = $tmpDocument;
+        $this->fieldName = $fieldName;
     }
 
     public function getDocId(): string
@@ -37,5 +44,10 @@ class ProcessData
     public function getTmpDocument(): SetaPDF_Signer_TmpDocument
     {
         return $this->tmpDocument;
+    }
+
+    public function getFieldName(): string
+    {
+        return $this->fieldName;
     }
 }
